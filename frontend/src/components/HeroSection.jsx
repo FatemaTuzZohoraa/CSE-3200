@@ -4,7 +4,7 @@ import { Compass, Users, Trophy, Calendar, Sparkles, ArrowRight, ShieldCheck } f
 
 export const HeroSection = () => {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-[#230B05] via-[#451A03] to-[#C85A32] text-white py-16 lg:py-24 rounded-3xl mx-4 sm:mx-6 lg:mx-8 my-6 shadow-2xl shadow-fall-900/40 border border-fall-500/30">
+    <section className="relative overflow-hidden bg-gradient-to-br from-[#230B05] via-[#451A03] to-[#C85A32] text-white py-16 lg:py-24 rounded-3xl mx-4 sm:mx-6 lg:mx-8 mt-10 mb-8 shadow-2xl shadow-fall-900/40 border border-fall-500/30">
       
       {/* Decorative Autumn Glow Elements */}
       <div className="absolute -top-24 -right-24 w-96 h-96 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
@@ -19,7 +19,7 @@ export const HeroSection = () => {
             {/* Autumn Edition Badge */}
             <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 backdrop-blur-md text-amber-200 text-xs font-bold tracking-wide">
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Official RUET Student Activity Portal • Fall '26</span>
+              <span>Official RUET Student Activity Portal</span>
             </div>
 
             {/* Straight Typography Heading */}

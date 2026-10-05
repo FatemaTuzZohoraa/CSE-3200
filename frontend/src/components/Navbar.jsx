@@ -50,10 +50,6 @@ export const Navbar = () => {
                 <span className="font-extrabold text-base tracking-tight text-amber-950 group-hover:text-fall-600 transition-colors">
                   RUET CLUB ZONE
                 </span>
-                <span className="px-1.5 py-0.5 text-[10px] font-extrabold bg-fall-100 text-fall-700 rounded-md border border-fall-200 flex items-center gap-0.5">
-                  <Sparkles className="w-2.5 h-2.5" />
-                  FALL
-                </span>
               </div>
               <p className="text-[10px] text-amber-800/70 font-medium">Rajshahi University of Engineering & Technology</p>
             </div>
