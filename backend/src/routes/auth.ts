@@ -24,6 +24,19 @@ const getTransporter = () => {
 };
 
 /**
+ * True when real SMTP credentials are present.
+ *
+ * While developing on a laptop nobody has Gmail App Passwords wired up, and the
+ * old behaviour left every new account stuck at is_verified = FALSE with no way
+ * to unlock it, because the verification email could never arrive. When SMTP is
+ * missing we skip the email and verify the account immediately, so the signup
+ * and login pages can actually be tested end to end. Once EMAIL_USER and
+ * EMAIL_PASSWORD are set, the normal verified-by-email flow is used again.
+ */
+const isSmtpConfigured = () =>
+    Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASSWORD);
+
+/**
  * POST /api/auth/register
  * Allows RUET students to sign up with name, EduMail, and password.
  * Always assigns role = 'student' and sends an email verification link.
@@ -80,6 +93,10 @@ router.post("/register", async (req: Request, res: Response): Promise<any> => {
         const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
         // 7. Insert new user into database (Role forced to 'student')
+        //    Without SMTP there is no email to verify, so the account is verified
+        //    on the spot. See isSmtpConfigured above.
+        const smtpReady = isSmtpConfigured();
+
         const insertQuery = `
             INSERT INTO users (
                 name,
@@ -98,9 +115,9 @@ router.post("/register", async (req: Request, res: Response): Promise<any> => {
             name.trim(),
             normalizedEmail,
             passwordHash,
-            false,
-            verificationToken,
-            verificationExpires,
+            !smtpReady, // verified immediately only in the no-SMTP dev case
+            smtpReady ? verificationToken : null,
+            smtpReady ? verificationExpires : null,
             "student" // Enforce student role
         ]);
 
@@ -110,37 +127,43 @@ router.post("/register", async (req: Request, res: Response): Promise<any> => {
         const baseUrl = process.env.APP_BASE_URL || "http://localhost:5000";
         const verificationLink = `${baseUrl}/api/auth/verify/${verificationToken}`;
 
-        const transporter = getTransporter();
+        if (smtpReady) {
+            const transporter = getTransporter();
 
-        const mailOptions = {
-            from: `"RUET Club Zone" <${process.env.EMAIL_USER}>`,
-            to: normalizedEmail,
-            subject: "Verify Your RUET EduMail - RUET Club Management",
-            html: `
-                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px;">
-                    <h2 style="color: #db2777; text-align: center;">RUET Club Management</h2>
-                    <p>Hello <strong>${newUser.name}</strong>,</p>
-                    <p>Thank you for signing up. Please click the button below to verify your official RUET EduMail account and complete your registration:</p>
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="${verificationLink}" style="background-color: #db2777; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Verify Account</a>
+            const mailOptions = {
+                from: `"RUET Club Zone" <${process.env.EMAIL_USER}>`,
+                to: normalizedEmail,
+                subject: "Verify Your RUET EduMail - RUET Club Management",
+                html: `
+                    <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px;">
+                        <h2 style="color: #db2777; text-align: center;">RUET Club Management</h2>
+                        <p>Hello <strong>${newUser.name}</strong>,</p>
+                        <p>Thank you for signing up. Please click the button below to verify your official RUET EduMail account and complete your registration:</p>
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="${verificationLink}" style="background-color: #db2777; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Verify Account</a>
+                        </div>
+                        <p>Or copy and paste this link into your browser:</p>
+                        <p style="word-break: break-all; color: #2563eb;"><a href="${verificationLink}">${verificationLink}</a></p>
+                        <p style="color: #666; font-size: 12px; margin-top: 30px;">This verification link will expire in 24 hours.</p>
                     </div>
-                    <p>Or copy and paste this link into your browser:</p>
-                    <p style="word-break: break-all; color: #2563eb;"><a href="${verificationLink}">${verificationLink}</a></p>
-                    <p style="color: #666; font-size: 12px; margin-top: 30px;">This verification link will expire in 24 hours.</p>
-                </div>
-            `
-        };
+                `
+            };
 
-        try {
-            await transporter.sendMail(mailOptions);
-        } catch (emailErr) {
-            console.error("[Nodemailer Error] Failed to send verification email:", emailErr);
-            // Notice: User account is created; let user know email dispatch had issue or advise checking inbox
+            try {
+                await transporter.sendMail(mailOptions);
+            } catch (emailErr) {
+                console.error("[Nodemailer Error] Failed to send verification email:", emailErr);
+                // Notice: User account is created; let user know email dispatch had issue or advise checking inbox
+            }
+        } else {
+            console.log(`[Register] SMTP not configured, so ${normalizedEmail} was auto-verified for local development.`);
         }
 
         return res.status(201).json({
             success: true,
-            message: "Registration successful. Please check your RUET EduMail to verify your account.",
+            message: smtpReady
+                ? "Registration successful. Please check your RUET EduMail to verify your account."
+                : "Registration successful. Your account is ready, please log in.",
             user: {
                 id: newUser.id,
                 name: newUser.name,
@@ -275,6 +298,15 @@ router.post("/resend-verification", async (req: Request, res: Response): Promise
             return res.status(400).json({
                 success: false,
                 message: "This account is already verified. You can log in directly."
+            });
+        }
+
+        // Nothing can be sent without SMTP, so say so instead of throwing a
+        // Nodemailer auth error at the user.
+        if (!isSmtpConfigured()) {
+            return res.status(503).json({
+                success: false,
+                message: "Email sending is not configured on this server yet. Please register again or contact the DSW office."
             });
         }
 

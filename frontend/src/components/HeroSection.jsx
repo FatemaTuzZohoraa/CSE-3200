@@ -1,158 +1,103 @@
-import React from 'react';
-import { useApp } from '../context/AppContext';
-import { Sparkles, ArrowRight, Shield, Calendar, Trophy } from 'lucide-react';
+import React from "react";
+import { Link } from "react-router-dom";
+import { Compass, Users, Trophy, Calendar, Sparkles, ArrowRight, ShieldCheck } from "lucide-react";
 
 export const HeroSection = () => {
-  const { setActiveTab, clubs, events, achievements } = useApp();
-
-  const featuredEvent = events[0] || {
-    title: 'Cyber Treasure Hunt 2.0',
-    clubName: 'RUET Cybersecurity Club',
-    date: '18.09.2026',
-    venue: 'Online',
-    registeredCount: 142,
-    maxParticipants: 200
-  };
-
-  const percentFilled = Math.min(100, Math.round((featuredEvent.registeredCount / featuredEvent.maxParticipants) * 100));
-
   return (
-    <div className="relative overflow-hidden bg-gradient-to-b from-purple-50/60 via-pink-50/30 to-white py-16 border-b border-purple-100">
+    <section className="relative overflow-hidden bg-gradient-to-br from-[#230B05] via-[#451A03] to-[#C85A32] text-white py-16 lg:py-24 rounded-3xl mx-4 sm:mx-6 lg:mx-8 my-6 shadow-2xl shadow-fall-900/40 border border-fall-500/30">
       
-      {/* Background soft glow graphics */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-gradient-to-r from-pink-400/15 via-purple-400/15 to-indigo-400/15 blur-3xl pointer-events-none rounded-full" />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      {/* Decorative Autumn Glow Elements */}
+      <div className="absolute -top-24 -right-24 w-96 h-96 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-fall-500/30 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="relative max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 text-center lg:text-left">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           
-          {/* Left Hero Content */}
+          {/* Main Hero Content */}
           <div className="lg:col-span-7 space-y-6">
             
-            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-pink-100/70 border border-pink-200 text-pink-900 text-xs font-semibold shadow-xs">
-              <Sparkles className="w-4 h-4 text-pink-600" />
-              <span>Centralized Club Portal for Rajshahi University of Engineering & Technology</span>
+            {/* Autumn Edition Badge */}
+            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 backdrop-blur-md text-amber-200 text-xs font-bold tracking-wide">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Official RUET Student Activity Portal • Fall '26</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight leading-none">
-              Welcome to <span className="bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">Ruet Club Zone</span>
+            {/* Straight Typography Heading */}
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
+              Discover & Connect with <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-100 to-amber-400">RUET Clubs</span>
             </h1>
 
-            <p className="text-slate-600 text-base sm:text-lg max-w-2xl font-normal leading-relaxed">
-              Discover student clubs, technical events, cybersecurity challenges, astronomy sky observations, and national achievements. Join clubs and connect with RUET innovators.
+            <p className="text-amber-100/90 text-sm sm:text-base lg:text-lg leading-relaxed max-w-2xl font-normal">
+              Explore student societies, join upcoming workshops & hackathons, showcase national achievements, and turn your passions into real projects at Rajshahi University of Engineering & Technology.
             </p>
 
-            {/* CTA Buttons */}
-            <div className="flex flex-wrap items-center gap-4 pt-2">
-              <button
-                onClick={() => setActiveTab('clubs')}
-                className="flex items-center space-x-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white font-bold text-sm shadow-md shadow-pink-500/20 transform hover:-translate-y-0.5 transition-all"
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 pt-2">
+              <a
+                href="#clubs"
+                className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-fall-500 to-amber-600 hover:from-fall-600 hover:to-amber-700 text-white font-extrabold text-sm shadow-lg shadow-fall-900/50 hover:scale-105 transition-all flex items-center space-x-2"
               >
-                <span>Explore RUET Clubs</span>
+                <Compass className="w-4 h-4" />
+                <span>Explore Clubs</span>
                 <ArrowRight className="w-4 h-4" />
-              </button>
+              </a>
 
-              <button
-                onClick={() => setActiveTab('events')}
-                className="flex items-center space-x-2 px-6 py-3.5 rounded-xl bg-white border border-purple-200 hover:bg-purple-50 text-purple-900 font-bold text-sm shadow-xs transition-all"
+              <Link
+                to="/events"
+                className="px-6 py-3.5 rounded-2xl bg-white/15 hover:bg-white/25 text-white border border-white/25 font-bold text-sm backdrop-blur-md transition-all flex items-center space-x-2"
               >
-                <Calendar className="w-4 h-4 text-pink-600" />
+                <Calendar className="w-4 h-4 text-amber-300" />
                 <span>Upcoming Events</span>
-              </button>
+              </Link>
             </div>
 
-            {/* Quick Live Platform Stats */}
-            <div className="grid grid-cols-3 gap-4 pt-6 border-t border-purple-100">
-              <div className="glass-panel p-3.5 rounded-2xl">
-                <div className="flex items-center space-x-2 text-pink-600">
-                  <Shield className="w-4 h-4" />
-                  <span className="text-2xl font-extrabold text-slate-900">{clubs.length}</span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1 font-medium">Active RUET Clubs</p>
-              </div>
-
-              <div className="glass-panel p-3.5 rounded-2xl">
-                <div className="flex items-center space-x-2 text-purple-600">
-                  <Calendar className="w-4 h-4" />
-                  <span className="text-2xl font-extrabold text-slate-900">{events.length}</span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1 font-medium">Campus Events</p>
-              </div>
-
-              <div className="glass-panel p-3.5 rounded-2xl">
-                <div className="flex items-center space-x-2 text-fuchsia-600">
-                  <Trophy className="w-4 h-4" />
-                  <span className="text-2xl font-extrabold text-slate-900">{achievements.length}</span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1 font-medium">National Trophies</p>
-              </div>
+            {/* Verification Note */}
+            <div className="flex items-center justify-center lg:justify-start space-x-2 text-amber-200/80 text-xs pt-2">
+              <ShieldCheck className="w-4 h-4 text-amber-300" />
+              <span>Restricted & Verified for @student.ruet.ac.bd</span>
             </div>
 
           </div>
 
-          {/* Right Hero Graphic Card */}
-          <div className="lg:col-span-5">
-            <div className="relative mx-auto max-w-md lg:max-w-none">
-              
-              {/* Card Container */}
-              <div className="relative rounded-2xl glass-panel p-6 shadow-xl space-y-5 border-purple-100">
-                
-                <div className="flex items-center justify-between border-b border-purple-100 pb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-xl shadow-md text-white">
-                      🛡️
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Featured Highlight</h4>
-                      <p className="text-sm font-bold text-slate-900">{featuredEvent.title}</p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md bg-pink-50 text-pink-700 border border-pink-200">
-                    Upcoming
-                  </span>
-                </div>
-
-                <div className="space-y-2 text-xs text-slate-700">
-                  <div className="flex justify-between py-1 border-b border-slate-100">
-                    <span className="text-slate-500">Organizer:</span>
-                    <span className="font-semibold text-slate-800">{featuredEvent.clubName}</span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-slate-100">
-                    <span className="text-slate-500">Date & Venue:</span>
-                    <span className="font-semibold text-slate-800">{featuredEvent.date} • {featuredEvent.venue}</span>
-                  </div>
-                  <div className="flex justify-between py-1">
-                    <span className="text-slate-500">Registered Students:</span>
-                    <span className="font-bold text-pink-600">{featuredEvent.registeredCount} / {featuredEvent.maxParticipants} Seats</span>
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div>
-                  <div className="flex justify-between text-[11px] text-slate-500 mb-1">
-                    <span>Capacity Filled</span>
-                    <span className="font-bold text-purple-600">{percentFilled}%</span>
-                  </div>
-                  <div className="w-full bg-purple-100/60 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-gradient-to-r from-pink-500 to-purple-600 h-2 rounded-full transition-all"
-                      style={{ width: `${percentFilled}%` }}
-                    />
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setActiveTab('events')}
-                  className="w-full py-2.5 bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl shadow-md text-center transition-all"
-                >
-                  View Details & Register →
-                </button>
-
+          {/* Right Statistics Box */}
+          <div className="lg:col-span-5 grid grid-cols-2 gap-4">
+            
+            <div className="bg-black/30 backdrop-blur-md border border-white/20 p-6 rounded-2xl text-center space-y-2 text-white shadow-lg">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center mx-auto text-amber-300">
+                <Compass className="w-5 h-5" />
               </div>
+              <div className="text-2xl sm:text-3xl font-black text-amber-300">8</div>
+              <div className="text-xs font-bold text-amber-100">Active Societies</div>
             </div>
+
+            <div className="bg-black/30 backdrop-blur-md border border-white/20 p-6 rounded-2xl text-center space-y-2 text-white shadow-lg">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center mx-auto text-amber-300">
+                <Users className="w-5 h-5" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-amber-300">4,200+</div>
+              <div className="text-xs font-bold text-amber-100">Student Members</div>
+            </div>
+
+            <div className="bg-black/30 backdrop-blur-md border border-white/20 p-6 rounded-2xl text-center space-y-2 text-white shadow-lg">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center mx-auto text-amber-300">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-amber-300">15+</div>
+              <div className="text-xs font-bold text-amber-100">Annual Events</div>
+            </div>
+
+            <div className="bg-black/30 backdrop-blur-md border border-white/20 p-6 rounded-2xl text-center space-y-2 text-white shadow-lg">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center mx-auto text-amber-300">
+                <Trophy className="w-5 h-5" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-amber-300">40+</div>
+              <div className="text-xs font-bold text-amber-100">National Wins</div>
+            </div>
+
           </div>
 
         </div>
       </div>
-    </div>
+    </section>
   );
 };

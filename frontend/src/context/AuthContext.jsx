@@ -67,6 +67,24 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   };
 
+  /**
+   * register(name, email, password)
+   *
+   * Calls POST /api/auth/register. The backend always forces role = 'student',
+   * so an admin cannot be created from this form.
+   *
+   * No token is stored here. The account has to be verified and then go through
+   * the login page, which matches the flow the backend was built for.
+   */
+  const register = async (name, email, password) => {
+    const data = await apiFetch("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ name, email, password })
+    });
+
+    return data;
+  };
+
   const logout = () => {
     clearToken();
     localStorage.removeItem(USER_KEY);
@@ -74,7 +92,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isChecking, login, logout }}>
+    <AuthContext.Provider value={{ user, isChecking, login, logout, register }}>
       {children}
     </AuthContext.Provider>
   );

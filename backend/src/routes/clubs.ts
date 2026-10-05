@@ -192,7 +192,12 @@ router.get("/", async (req: Request, res: Response): Promise<any> => {
 
 /**
  * GET /api/clubs/mine
- * The logged-in user's own submissions, newest first.
+ * The logged-in user's own club submissions, newest first.
+ *
+ * "Submitted" means the user is the person who filled in the create-club form.
+ * That is stored as the earliest 'submitted'/'resubmitted' row in
+ * club_status_history, so it is read from there rather than guessed from
+ * club_members (a member can also join an existing club and is not its creator).
  *
  * There is no user id in this URL on purpose. It always uses req.user.id, so a
  * student cannot read someone else's submissions by editing the request.
@@ -209,6 +214,12 @@ router.get("/mine", authenticate, async (req: Request, res: Response): Promise<a
                       WHERE l.club_id = c.id AND l.ended_at IS NULL) AS current_president_id
              FROM clubs c
              JOIN club_members m ON m.club_id = c.id AND m.user_id = $1
+             WHERE EXISTS (
+                 SELECT 1 FROM club_status_history h
+                 WHERE h.club_id = c.id
+                   AND h.acted_by = $1
+                   AND h.action IN ('submitted', 'resubmitted')
+             )
              ORDER BY c.created_at DESC`,
             [req.user!.id]
         );
@@ -232,6 +243,223 @@ router.get("/mine", authenticate, async (req: Request, res: Response): Promise<a
         return res.status(500).json({
             success: false,
             message: "Could not load your club submissions. Please try again."
+        });
+    }
+});
+
+/**
+ * GET /api/clubs/joined
+ * Approved clubs the logged-in user joined as a regular member.
+ *
+ * This is the mirror image of /mine: clubs the user submitted are excluded here
+ * because those already have their own page. "is_member" lets the frontend show
+ * a Leave button without a second round trip.
+ */
+router.get("/joined", authenticate, async (req: Request, res: Response): Promise<any> => {
+    try {
+        const result = await pool.query(
+            `SELECT c.id, c.name, c.description, c.category, c.logo_url,
+                    c.advisor_name, c.advisor_department, c.status, m.joined_at,
+                    TRUE AS is_member,
+                    (SELECT COUNT(*) FROM club_members cm
+                      WHERE cm.club_id = c.id AND cm.left_at IS NULL) AS members_count,
+                    -- non-null only when this user is the club's current president
+                    (SELECT l.user_id FROM club_leaderships l
+                      WHERE l.club_id = c.id AND l.ended_at IS NULL) AS current_president_id
+             FROM clubs c
+             JOIN club_members m ON m.club_id = c.id AND m.user_id = $1 AND m.left_at IS NULL
+             WHERE c.status = 'approved'
+               AND NOT EXISTS (
+                   SELECT 1 FROM club_status_history h
+                   WHERE h.club_id = c.id
+                     AND h.acted_by = $1
+                     AND h.action IN ('submitted', 'resubmitted')
+               )
+             ORDER BY m.joined_at DESC`,
+            [req.user!.id]
+        );
+
+        const currentUserId = req.user!.id;
+
+        const clubs = result.rows.map((row: any) => ({
+            ...row,
+            is_president: row.current_president_id !== null && Number(row.current_president_id) === Number(currentUserId)
+        }));
+
+        return res.json({
+            success: true,
+            message: `${clubs.length} joined club(s) found`,
+            clubs
+        });
+
+    } catch (error) {
+        console.error("[Joined Clubs Error]", error);
+        return res.status(500).json({
+            success: false,
+            message: "Could not load your club memberships. Please try again."
+        });
+    }
+});
+
+/**
+ * POST /api/clubs/:id/join
+ * A signed-in student joins an approved club.
+ *
+ * Only the user id from the token is used, so nobody can join on someone else's
+ * behalf. The club must be approved, otherwise a student could see a pending or
+ * rejected club by guessing its id.
+ */
+router.post("/:id/join", authenticate, async (req: Request, res: Response): Promise<any> => {
+    try {
+        const clubId = Number(req.params.id);
+
+        if (!Number.isInteger(clubId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid club id"
+            });
+        }
+
+        const userId = req.user!.id;
+
+        const clubResult = await pool.query(
+            "SELECT id, name, status FROM clubs WHERE id = $1",
+            [clubId]
+        );
+
+        if (clubResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Club not found"
+            });
+        }
+
+        const club = clubResult.rows[0];
+
+        if (club.status !== "approved") {
+            return res.status(403).json({
+                success: false,
+                message: "This club is not open for joining right now. Only approved clubs accept new members."
+            });
+        }
+
+        // The creator is already a member and president, so joining is a no-op.
+        const leadershipResult = await pool.query(
+            "SELECT 1 FROM club_leaderships WHERE club_id = $1 AND user_id = $2 AND ended_at IS NULL",
+            [clubId, userId]
+        );
+
+        if (leadershipResult.rows.length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: `You are already a leader of "${club.name}".`
+            });
+        }
+
+        // club_members has PRIMARY KEY (club_id, user_id), so a student who left
+        // and comes back updates the same row instead of adding a second one.
+        await pool.query(
+            `INSERT INTO club_members (club_id, user_id)
+             VALUES ($1, $2)
+             ON CONFLICT (club_id, user_id)
+             DO UPDATE SET joined_at = NOW(), left_at = NULL`,
+            [clubId, userId]
+        );
+
+        const countResult = await pool.query(
+            "SELECT COUNT(*) FROM club_members WHERE club_id = $1 AND left_at IS NULL",
+            [clubId]
+        );
+
+        return res.status(201).json({
+            success: true,
+            message: `You have joined "${club.name}".`,
+            club: {
+                ...club,
+                members_count: Number(countResult.rows[0].count),
+                is_member: true
+            }
+        });
+
+    } catch (error) {
+        console.error("[Join Club Error]", error);
+        return res.status(500).json({
+            success: false,
+            message: "Could not join this club right now. Please try again."
+        });
+    }
+});
+
+/**
+ * POST /api/clubs/:id/leave
+ * A member leaves a club. The row stays in club_members with left_at filled in,
+ * which is how the schema models a past membership.
+ */
+router.post("/:id/leave", authenticate, async (req: Request, res: Response): Promise<any> => {
+    try {
+        const clubId = Number(req.params.id);
+
+        if (!Number.isInteger(clubId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid club id"
+            });
+        }
+
+        const userId = req.user!.id;
+
+        const clubResult = await pool.query(
+            "SELECT id, name FROM clubs WHERE id = $1",
+            [clubId]
+        );
+
+        if (clubResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Club not found"
+            });
+        }
+
+        const club = clubResult.rows[0];
+
+        // A president has to hand the role over first, otherwise the club would be
+        // left with no current leader row.
+        const leadershipResult = await pool.query(
+            "SELECT 1 FROM club_leaderships WHERE club_id = $1 AND user_id = $2 AND ended_at IS NULL",
+            [clubId, userId]
+        );
+
+        if (leadershipResult.rows.length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: `You are the current president of "${club.name}". Transfer the presidency before leaving.`
+            });
+        }
+
+        const membershipResult = await pool.query(
+            `UPDATE club_members
+             SET left_at = NOW()
+             WHERE club_id = $1 AND user_id = $2 AND left_at IS NULL`,
+            [clubId, userId]
+        );
+
+        if (membershipResult.rowCount === 0) {
+            return res.status(400).json({
+                success: false,
+                message: `You are not a member of "${club.name}".`
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: `You have left "${club.name}".`
+        });
+
+    } catch (error) {
+        console.error("[Leave Club Error]", error);
+        return res.status(500).json({
+            success: false,
+            message: "Could not leave this club right now. Please try again."
         });
     }
 });

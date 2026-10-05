@@ -1,136 +1,120 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { apiFetch } from "../lib/api";
-import { Building2, ExternalLink, Users } from "lucide-react";
+import React, { useState } from "react";
+import { useApp } from "../context/AppContext";
+import { ClubCard } from "./ClubCard";
+import { Search, Building2, Filter, Sparkles } from "lucide-react";
 
-/**
- * ClubDirectory
- * Public list of approved clubs, loaded from GET /api/clubs.
- *
- * The backend only ever returns status = 'approved' rows here, so pending,
- * rejected and suspended clubs cannot leak into this page.
- */
 export const ClubDirectory = ({ onViewClub }) => {
-  const [clubs, setClubs] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { clubs } = useApp();
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
 
-  const loadClubs = useCallback(async () => {
-    setIsLoading(true);
-    setError("");
+  const categories = ["All", "Technology", "Robotics", "Cultural", "Career"];
 
-    try {
-      const data = await apiFetch("/api/clubs");
-      setClubs(data.clubs);
-    } catch (loadError) {
-      setError(loadError.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const filteredClubs = clubs.filter((club) => {
+    const matchesCategory =
+      selectedCategory === "All" ||
+      club.category.toLowerCase() === selectedCategory.toLowerCase();
 
-  useEffect(() => {
-    loadClubs();
-  }, [loadClubs]);
-
-  // Simple client-side name/description filter, matching the old mock search.
-  const visibleClubs = clubs.filter((club) => {
-    const matchesQuery =
+    const matchesSearch =
       club.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (club.description || "").toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesQuery;
+      club.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      club.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (club.tags && club.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())));
+
+    return matchesCategory && matchesSearch;
   });
 
   return (
-    <section className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-purple-100 pb-4">
-        <div>
-          <h2 className="text-2xl font-extrabold text-slate-900 flex items-center space-x-2">
-            <Building2 className="w-5 h-5 text-pink-600" />
-            <span>Approved Clubs</span>
+    <section id="clubs" className="space-y-8">
+      
+      {/* Directory Header & Search Controls */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white/80 backdrop-blur-md p-6 sm:p-8 rounded-3xl border border-amber-900/10 shadow-fall-sm">
+        
+        <div className="space-y-2 max-w-xl">
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-fall-100 border border-fall-200 text-fall-700 text-xs font-extrabold">
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Official Student Societies</span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-amber-950 tracking-tight">
+            Explore RUET Clubs & Communities
           </h2>
-          <p className="text-xs text-slate-600 mt-1">
-            Clubs listed here have been reviewed and approved by the DSW office.
+          <p className="text-xs sm:text-sm text-amber-900/80 leading-relaxed font-normal">
+            Browse through technology, robotics, cultural, and career societies at RUET. Join clubs to participate in projects, workshops, and national competitions.
           </p>
         </div>
 
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search clubs..."
-          className="w-full sm:w-64 bg-purple-50/50 border border-purple-100 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-purple-300 focus:outline-none focus:bg-white focus:border-pink-500"
-        />
+        {/* Search Bar Input */}
+        <div className="w-full md:w-80 relative">
+          <Search className="w-4 h-4 text-amber-800/60 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search clubs, tags, topics..."
+            className="w-full bg-amber-50/60 border border-amber-900/15 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-amber-950 placeholder-amber-900/50 focus:outline-none focus:border-fall-500 focus:bg-white transition-all shadow-inner font-medium"
+          />
+        </div>
+
       </div>
 
-      {isLoading && (
-        <div className="glass-panel p-8 rounded-2xl text-center text-slate-500 text-sm">Loading clubs...</div>
-      )}
+      {/* Category Filter Tabs & Counter */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-amber-900/10 pb-4">
+        
+        {/* Category Pills */}
+        <div className="flex flex-wrap items-center gap-2">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all duration-200 ${
+                selectedCategory === cat
+                  ? "bg-fall-600 text-white shadow-md shadow-fall-600/20"
+                  : "bg-white/80 text-amber-950/80 hover:text-fall-600 hover:bg-amber-100/60 border border-amber-900/10"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
 
-      {error && (
-        <div className="glass-panel p-8 rounded-2xl text-center">
-          <p className="text-sm text-rose-600">{error}</p>
-          <button onClick={loadClubs} className="mt-3 text-xs font-semibold text-pink-600 hover:underline">
-            Try again
+        {/* Count Badge */}
+        <div className="text-xs font-bold text-amber-900/70 flex items-center space-x-1.5 bg-amber-100/60 px-3 py-1.5 rounded-xl border border-amber-900/10">
+          <Filter className="w-3.5 h-3.5 text-fall-600" />
+          <span>Showing <strong>{filteredClubs.length}</strong> of {clubs.length} Clubs</span>
+        </div>
+
+      </div>
+
+      {/* Clubs Card Grid */}
+      {filteredClubs.length === 0 ? (
+        <div className="text-center py-16 bg-white/60 backdrop-blur-md rounded-3xl border border-amber-900/10 space-y-3">
+          <Building2 className="w-12 h-12 text-amber-800/40 mx-auto" />
+          <h3 className="text-base font-bold text-amber-950">No clubs found</h3>
+          <p className="text-xs text-amber-900/70 max-w-sm mx-auto">
+            Try searching for a different keyword or select another category filter.
+          </p>
+          <button
+            onClick={() => {
+              setSearchQuery("");
+              setSelectedCategory("All");
+            }}
+            className="px-4 py-2 rounded-xl bg-fall-600 text-white font-bold text-xs shadow-md"
+          >
+            Reset Search Filters
           </button>
         </div>
-      )}
-
-      {!isLoading && !error && visibleClubs.length === 0 && (
-        <div className="glass-panel p-8 rounded-2xl text-center text-slate-500 text-sm">
-          No approved clubs yet. Clubs appear here once an admin approves them.
-        </div>
-      )}
-
-      {!isLoading && !error && visibleClubs.length > 0 && (
+      ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {visibleClubs.map((club) => (
-            <div key={club.id} className="glass-panel glass-panel-hover rounded-2xl overflow-hidden border-slate-200 flex flex-col group">
-              <div className="relative h-36 overflow-hidden bg-slate-100 flex items-center justify-center">
-                {club.logo_url ? (
-                  <img
-                    src={club.logo_url}
-                    alt={club.name}
-                    className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
-                  />
-                ) : (
-                  <Building2 className="w-12 h-12 text-slate-300" />
-                )}
-
-                <div className="absolute top-3 left-3">
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-sm">
-                    {club.category}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 group-hover:text-pink-600 transition-colors">
-                    {club.name}
-                  </h3>
-                  <p className="text-xs text-slate-600 mt-2 line-clamp-2 leading-relaxed">{club.description}</p>
-                </div>
-
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[11px] text-slate-500 flex items-center space-x-1">
-                    <Users className="w-3.5 h-3.5 text-pink-600" />
-                    <span><strong className="text-slate-800">{club.members_count}</strong> Members</span>
-                  </span>
-
-                  <button
-                    onClick={() => onViewClub(club)}
-                    className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-semibold border border-pink-200 transition-all"
-                  >
-                    <span>View Details</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
+          {filteredClubs.map((club) => (
+            <ClubCard
+              key={club.id}
+              club={club}
+              onViewDetails={(selected) => onViewClub && onViewClub(selected)}
+            />
           ))}
         </div>
       )}
+
     </section>
   );
 };

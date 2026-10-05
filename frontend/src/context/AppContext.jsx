@@ -8,9 +8,6 @@ export const AppProvider = ({ children }) => {
   const [currentRoleKey, setCurrentRoleKey] = useState('student');
   const currentUser = MOCK_USERS[currentRoleKey];
 
-  // Active view tab: 'home' | 'clubs' | 'events' | 'achievements' | 'dashboard'
-  const [activeTab, setActiveTab] = useState('home');
-
   // Datasets state (allows dynamic addition)
   const [clubs, setClubs] = useState(MOCK_CLUBS);
   const [events, setEvents] = useState(MOCK_EVENTS);
@@ -99,15 +96,16 @@ export const AppProvider = ({ children }) => {
         currentRoleKey,
         setCurrentRoleKey,
         currentUser,
-        activeTab,
-        setActiveTab,
         clubs,
         events,
         achievements,
         notifications,
         userRegistrations,
         savedClubIds,
+        joinedClubs: savedClubIds,
         toggleSaveClub,
+        joinClub: (id) => toggleSaveClub(id),
+        leaveClub: (id) => toggleSaveClub(id),
         registerForEvent,
         addNewEvent,
         markNotificationsAsRead,
@@ -121,6 +119,8 @@ export const AppProvider = ({ children }) => {
         setIsCreateEventModalOpen,
         isNotificationDrawerOpen,
         setIsNotificationDrawerOpen,
+        isNotificationOpen: isNotificationDrawerOpen,
+        setIsNotificationOpen: setIsNotificationDrawerOpen,
         searchQuery,
         setSearchQuery,
         selectedCategory,
