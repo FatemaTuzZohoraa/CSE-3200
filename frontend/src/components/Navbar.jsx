@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
+import { LoginModal } from './LoginModal';
+import { CreateClubModal } from './CreateClubModal';
 import { 
   Building2, 
   Calendar, 
@@ -13,7 +16,11 @@ import {
   ShieldAlert, 
   GraduationCap,
   Menu,
-  X
+  X,
+  LogIn,
+  LogOut,
+  FileText,
+  ShieldCheck
 } from 'lucide-react';
 
 export const Navbar = () => {
@@ -29,6 +36,13 @@ export const Navbar = () => {
     setSearchQuery
   } = useApp();
 
+  // Real backend session
+  const { user, logout } = useAuth();
+
+  // Navbar owns these two modals so the buttons can live in the header
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isCreateClubModalOpen, setIsCreateClubModalOpen] = useState(false);
+
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -40,12 +54,16 @@ export const Navbar = () => {
     admin: { title: 'University Admin', icon: ShieldAlert, color: 'text-fuchsia-700 bg-fuchsia-50 border-fuchsia-200' }
   };
 
+  // "My Submissions" needs a real login. "Club Review" needs role = 'admin'.
+  // The backend checks both again on every request, so these are just UI hints.
   const navItems = [
     { id: 'home', label: 'Home', icon: Building2 },
     { id: 'clubs', label: 'Clubs', icon: Building2 },
     { id: 'events', label: 'Events', icon: Calendar },
     { id: 'achievements', label: 'Achievements', icon: Award },
     { id: 'dashboard', label: 'My Portal', icon: LayoutDashboard },
+    ...(user ? [{ id: 'my-submissions', label: 'My Submissions', icon: FileText }] : []),
+    ...(user?.role === 'admin' ? [{ id: 'admin-review', label: 'Club Review', icon: ShieldCheck }] : []),
   ];
 
   return (
@@ -119,7 +137,44 @@ export const Navbar = () => {
               </button>
             )}
 
-            {/* Role Switcher Dropdown */}
+            {/* Create Club: real API. Only for a signed-in student. */}
+            {user && user.role === 'student' && (
+              <button
+                onClick={() => setIsCreateClubModalOpen(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs rounded-xl shadow-md transition-all"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Create Club</span>
+              </button>
+            )}
+
+            {/* Login / Logout. Logged in state comes from the saved JWT, not a toggle. */}
+            {user ? (
+              <div className="flex items-center space-x-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <GraduationCap className="w-4 h-4 text-emerald-700" />
+                <div className="leading-tight">
+                  <div className="text-[11px] font-bold text-emerald-900 max-w-[110px] truncate">{user.name}</div>
+                  <div className="text-[9px] text-emerald-700 font-semibold uppercase">{user.role}</div>
+                </div>
+                <button
+                  onClick={logout}
+                  title="Log Out"
+                  className="p-1 rounded-lg bg-white text-slate-500 hover:text-rose-600 border border-emerald-200"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsLoginModalOpen(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-xl shadow-md transition-all"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Log In</span>
+              </button>
+            )}
+
+            {/* Role Switcher Dropdown (demo only, drives the mock screens) */}
             <div className="relative">
               <button
                 onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
@@ -244,6 +299,17 @@ export const Navbar = () => {
             ))}
           </div>
 
+          {/* Logged out: a student cannot submit a club, so offer the login first. */}
+          {!user && (
+            <button
+              onClick={() => setIsLoginModalOpen(true)}
+              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-2"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Log In to Submit a Club</span>
+            </button>
+          )}
+
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
             <span className="text-xs text-slate-500">Current Demo Role:</span>
             <select
@@ -258,6 +324,17 @@ export const Navbar = () => {
           </div>
         </div>
       )}
+
+      {/* Auth modals for the club feature */}
+      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
+      <CreateClubModal
+        isOpen={isCreateClubModalOpen}
+        onClose={() => setIsCreateClubModalOpen(false)}
+        onClubCreated={() => {
+          // Keep the student on the page they were on after submitting.
+          setActiveTab('my-submissions');
+        }}
+      />
     </header>
   );
 };

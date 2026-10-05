@@ -2,6 +2,8 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth";
+import clubRoutes from "./routes/clubs";
+import adminClubRoutes from "./routes/adminClubs";
 
 dotenv.config();
 
@@ -13,6 +15,8 @@ app.use(express.json());
 
 // API Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/clubs", clubRoutes);
+app.use("/api/admin/clubs", adminClubRoutes);
 
 // Health check endpoint
 app.get("/", (req: Request, res: Response) => {

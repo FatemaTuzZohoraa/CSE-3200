@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
 import { ClubCard } from './components/ClubCard';
@@ -11,27 +12,30 @@ import { AchievementShowcase } from './components/AchievementShowcase';
 import { RoleDashboard } from './components/RoleDashboard';
 import { NotificationDrawer } from './components/NotificationDrawer';
 import { Footer } from './components/Footer';
+import { ClubDirectory } from './components/ClubDirectory';
+import { ClubDetailsModal } from './components/ClubDetailsModal';
+import { CreateClubModal } from './components/CreateClubModal';
+import { MySubmissions } from './components/MySubmissions';
+import { AdminClubReview } from './components/AdminClubReview';
 import { Building2, Calendar, Filter } from 'lucide-react';
 
 const MainContent = () => {
   const { 
     activeTab, 
-    clubs, 
     events, 
     searchQuery, 
     selectedCategory, 
     setSelectedCategory 
   } = useApp();
 
-  const categories = ['All', 'Technology', 'Robotics', 'Career', 'Cultural', 'Sports'];
+  // Real logged-in user from the backend auth system
+  const { user } = useAuth();
 
-  // Filter Clubs
-  const filteredClubs = clubs.filter((c) => {
-    const matchesCategory = selectedCategory === 'All' || c.category === selectedCategory;
-    const matchesQuery = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         c.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesCategory && matchesQuery;
-  });
+  // The Navbar owns the login and create-club modals. This page only needs to
+  // know which club to show in the details modal.
+  const [detailClubId, setDetailClubId] = useState(null);
+
+  const categories = ['All', 'Technology', 'Robotics', 'Career', 'Cultural', 'Sports'];
 
   // Filter Events
   const filteredEvents = events.filter((e) => {
@@ -51,51 +55,21 @@ const MainContent = () => {
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
           
-          {/* HOME OR CLUBS VIEW */}
+          {/* APPROVED CLUBS (real data from GET /api/clubs) */}
           {(activeTab === 'home' || activeTab === 'clubs') && (
-            <section className="space-y-6" id="clubs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-purple-100 pb-4">
-                <div>
-                  <h2 className="text-2xl font-extrabold text-slate-900 flex items-center space-x-2">
-                    <Building2 className="w-5 h-5 text-pink-600" />
-                    <span>Ruet Clubs Directory</span>
-                  </h2>
-                  <p className="text-xs text-slate-600 mt-1">
-                    Explore university-recognized clubs, executive teams, and recruitment openings.
-                  </p>
-                </div>
+            <div id="clubs">
+              <ClubDirectory onViewClub={(club) => setDetailClubId(club.id)} />
+            </div>
+          )}
 
-                {/* Category Filter Pills */}
-                <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-                  <Filter className="w-4 h-4 text-purple-400 shrink-0 mr-1" />
-                  {categories.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                        selectedCategory === cat
-                          ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white font-bold shadow-md shadow-pink-500/20'
-                          : 'bg-white text-slate-600 border border-purple-100 hover:bg-purple-50 hover:text-purple-900'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
+          {/* MY SUBMISSIONS: clubs the logged-in student submitted */}
+          {activeTab === 'my-submissions' && (
+            <MySubmissions />
+          )}
 
-              {filteredClubs.length === 0 ? (
-                <div className="glass-panel p-8 rounded-2xl text-center text-slate-500 text-sm">
-                  No clubs found matching your filter criteria.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredClubs.map((club) => (
-                    <ClubCard key={club.id} club={club} />
-                  ))}
-                </div>
-              )}
-            </section>
+          {/* ADMIN REVIEW QUEUE: only rendered for role = 'admin' */}
+          {activeTab === 'admin-review' && user?.role === 'admin' && (
+            <AdminClubReview />
           )}
 
           {/* HOME OR EVENTS VIEW */}
@@ -142,6 +116,9 @@ const MainContent = () => {
       <CreateEventModal />
       <NotificationDrawer />
 
+      {/* Club details modal (backed by the real API) */}
+      <ClubDetailsModal clubId={detailClubId} onClose={() => setDetailClubId(null)} />
+
       <Footer />
     </div>
   );
@@ -149,8 +126,10 @@ const MainContent = () => {
 
 export default function App() {
   return (
-    <AppProvider>
-      <MainContent />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <MainContent />
+      </AppProvider>
+    </AuthProvider>
   );
 }
