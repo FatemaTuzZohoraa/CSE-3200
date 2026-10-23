@@ -1,20 +1,26 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { apiFetch } from "../lib/api";
+import { Link } from "react-router-dom";
+import { apiFetch, resolveAssetUrl } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import {
   Building2, Users, LogOut, LogIn, RefreshCw, Clock, ShieldCheck,
-  AlertCircle, CheckCircle2
+  AlertCircle, CheckCircle2, ClipboardList
 } from "lucide-react";
 
 /**
  * MyClubsPage  ->  route: /my-clubs
  * Styled with Fall Vibe aesthetic.
+ *
+ * Joining is no longer instant: the bottom section links to the application
+ * form, and shows "Application pending" for clubs the student already applied to.
  */
 export const MyClubsPage = () => {
   const { user } = useAuth();
 
   const [myClubs, setMyClubs] = useState([]);
   const [availableClubs, setAvailableClubs] = useState([]);
+  const [pendingClubIds, setPendingClubIds] = useState(new Set());
+  const [ownClubIds, setOwnClubIds] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -25,13 +31,33 @@ export const MyClubsPage = () => {
     setError("");
 
     try {
-      const [mineData, allData] = await Promise.all([
+      const [mineData, allData, applicationsData, submittedData] = await Promise.all([
         apiFetch("/api/clubs/joined"),
-        apiFetch("/api/clubs")
+        apiFetch("/api/clubs"),
+        apiFetch("/api/applications/mine"),
+        apiFetch("/api/clubs/mine")
       ]);
 
       setMyClubs(mineData.clubs);
       setAvailableClubs(allData.clubs);
+
+      // Clubs where an application is still waiting for the president
+      setPendingClubIds(
+        new Set(
+          applicationsData.applications
+            .filter((application) => application.status === "pending")
+            .map((application) => String(application.club_id))
+        )
+      );
+
+      // Clubs this student created and leads (they are members, but /joined skips them)
+      setOwnClubIds(
+        new Set(
+          submittedData.clubs
+            .filter((club) => club.status === "approved")
+            .map((club) => String(club.id))
+        )
+      );
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -42,22 +68,6 @@ export const MyClubsPage = () => {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
-
-  const handleJoin = async (club) => {
-    setBusyClubId(club.id);
-    setError("");
-    setMessage("");
-
-    try {
-      const data = await apiFetch(`/api/clubs/${club.id}/join`, { method: "POST" });
-      await loadAll();
-      setMessage(data.message);
-    } catch (joinError) {
-      setError(joinError.message);
-    } finally {
-      setBusyClubId(null);
-    }
-  };
 
   const handleLeave = async (club) => {
     setBusyClubId(club.id);
@@ -88,18 +98,28 @@ export const MyClubsPage = () => {
               <span>My Club Memberships</span>
             </h1>
             <p className="text-xs text-stone-600 mt-1">
-              Clubs you have registered with as a student.
+              Clubs you are a member of.
               {user && <span className="ml-1 text-stone-400">{user.email}</span>}
             </p>
           </div>
 
-          <button
-            onClick={loadAll}
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-white text-stone-700 border border-amber-200 rounded-xl text-xs font-semibold hover:bg-amber-50 self-start sm:self-auto transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
-            <span>Refresh</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Link
+              to="/my-applications"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-white text-stone-700 border border-amber-200 rounded-xl text-xs font-semibold hover:bg-amber-50 transition-colors"
+            >
+              <ClipboardList className="w-3.5 h-3.5 text-amber-700" />
+              <span>My Applications</span>
+            </Link>
+
+            <button
+              onClick={loadAll}
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-white text-stone-700 border border-amber-200 rounded-xl text-xs font-semibold hover:bg-amber-50 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -122,7 +142,7 @@ export const MyClubsPage = () => {
 
         {!isLoading && myClubs.length === 0 && (
           <div className="glass-panel p-8 rounded-2xl text-center text-stone-500 text-sm">
-            You have not joined any clubs yet. Pick one from the list below.
+            You have not joined any clubs yet. Apply to one from the list below.
           </div>
         )}
 
@@ -133,7 +153,7 @@ export const MyClubsPage = () => {
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 rounded-xl bg-amber-50/50 border border-amber-200 flex items-center justify-center overflow-hidden shrink-0">
                     {club.logo_url ? (
-                      <img src={club.logo_url} alt={club.name} className="w-full h-full object-contain p-1" />
+                      <img src={resolveAssetUrl(club.logo_url)} alt={club.name} className="w-full h-full object-contain p-1" />
                     ) : (
                       <Building2 className="w-5 h-5 text-stone-300" />
                     )}
@@ -181,23 +201,25 @@ export const MyClubsPage = () => {
         <div className="border-b border-amber-200/60 pb-4">
           <h2 className="text-xl font-extrabold text-stone-900 flex items-center space-x-2 font-serif">
             <Building2 className="w-5 h-5 text-amber-700" />
-            <span>Register for a Club</span>
+            <span>Apply to a Club</span>
           </h2>
           <p className="text-xs text-stone-600 mt-1">
-            Approved clubs that are open for joining. Click Join to add yourself to the member list.
+            Approved clubs open for new members. Send an application and the club president will review it.
           </p>
         </div>
 
         {!isLoading && availableClubs.length === 0 && (
           <div className="glass-panel p-8 rounded-2xl text-center text-stone-500 text-sm">
-            No clubs are available to join right now.
+            No clubs are available right now.
           </div>
         )}
 
         {!isLoading && availableClubs.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {availableClubs.map((club) => {
-              const alreadyJoined = joinedIds.has(String(club.id));
+              const clubKey = String(club.id);
+              const isMember = joinedIds.has(clubKey) || ownClubIds.has(clubKey);
+              const isPending = pendingClubIds.has(clubKey);
 
               return (
                 <div
@@ -207,7 +229,7 @@ export const MyClubsPage = () => {
                   <div className="flex items-start gap-3">
                     <div className="w-12 h-12 rounded-xl bg-amber-50/50 border border-amber-200 flex items-center justify-center overflow-hidden shrink-0">
                       {club.logo_url ? (
-                        <img src={club.logo_url} alt={club.name} className="w-full h-full object-contain p-1" />
+                        <img src={resolveAssetUrl(club.logo_url)} alt={club.name} className="w-full h-full object-contain p-1" />
                       ) : (
                         <Building2 className="w-5 h-5 text-stone-300" />
                       )}
@@ -227,31 +249,28 @@ export const MyClubsPage = () => {
 
                   <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed flex-1">{club.description}</p>
 
-                  <button
-                    onClick={() => handleJoin(club)}
-                    disabled={alreadyJoined || busyClubId === club.id}
-                    className={`w-full py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 disabled:cursor-not-allowed ${alreadyJoined
-                        ? "bg-amber-100/50 text-stone-400 border border-amber-200"
-                        : "bg-gradient-to-r from-amber-700 via-orange-700 to-amber-900 hover:from-amber-600 hover:to-orange-800 text-white shadow-md disabled:opacity-60"
-                      }`}
-                  >
-                    {alreadyJoined ? (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Already a member</span>
-                      </>
-                    ) : busyClubId === club.id ? (
-                      <>
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>Joining...</span>
-                      </>
-                    ) : (
-                      <>
-                        <LogIn className="w-3.5 h-3.5" />
-                        <span>Join Club</span>
-                      </>
-                    )}
-                  </button>
+                  {isMember ? (
+                    <div className="w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 bg-amber-100/50 text-stone-400 border border-amber-200">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Already a member</span>
+                    </div>
+                  ) : isPending ? (
+                    <Link
+                      to="/my-applications"
+                      className="w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 bg-amber-100 text-amber-900 border border-amber-300"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Application pending</span>
+                    </Link>
+                  ) : (
+                    <Link
+                      to={`/clubs/${club.id}/apply`}
+                      className="w-full py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-700 via-orange-700 to-amber-900 hover:from-amber-600 hover:to-orange-800 text-white shadow-md"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>Apply to Join</span>
+                    </Link>
+                  )}
                 </div>
               );
             })}

@@ -5,7 +5,6 @@ import { AuthProvider } from "./context/AuthContext";
 import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
 import { ProtectedRoute, AdminRoute } from "./components/RouteGuards";
-import { ClubDetailModal } from "./components/ClubDetailModal";
 import { EventRegisterModal } from "./components/EventRegisterModal";
 import { CreateEventModal } from "./components/CreateEventModal";
 import { NotificationDrawer } from "./components/NotificationDrawer";
@@ -21,14 +20,20 @@ import { CreateClubPage } from "./pages/CreateClubPage";
 import { MySubmissionsPage } from "./pages/MySubmissionsPage";
 import { MyClubsPage } from "./pages/MyClubsPage";
 import { AdminReviewPage } from "./pages/AdminReviewPage";
+import { ApplyToClubPage } from "./pages/ApplyToClubPage";
+import { MyApplicationsPage } from "./pages/MyApplicationsPage";
+import { ManageClubsPage } from "./pages/ManageClubsPage";
+import { ClubApplicationsPage } from "./pages/ClubApplicationsPage";
+import { ManageEventsPage } from "./pages/ManageEventsPage";
+import { EventRegistrationsPage } from "./pages/EventRegistrationsPage";
+import { MyEventRegistrationsPage } from "./pages/MyEventRegistrationsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
 /**
  * SiteLayout
  *
  * The frame every normal page sits in: navbar on top, footer at the bottom, and
- * the modals that were previously mounted in App.jsx. <Outlet /> is where the
- * matched page component renders.
+ * the global modals. <Outlet /> is where the matched page component renders.
  *
  * Scroll position is reset on navigation, otherwise switching pages keeps the
  * old scroll offset and can land you halfway down a new page.
@@ -49,7 +54,6 @@ const SiteLayout = () => {
       </div>
 
       {/* Global modals and the notification drawer */}
-      <ClubDetailModal />
       <EventRegisterModal />
       <CreateEventModal />
       <NotificationDrawer />
@@ -62,19 +66,24 @@ const SiteLayout = () => {
 /**
  * App
  *
- * Routing replaces the old activeTab string switching:
- *
- *   /                 Home        (hero + clubs + events)
- *   /clubs            Clubs
- *   /events           Events
- *   /achievements     Achievements
- *   /dashboard        My Portal
- *   /create-club      Create a club          (needs login)
- *   /my-submissions   My club submissions    (needs login)
- *   /my-clubs         Join / leave clubs      (needs login)
- *   /admin/review     Club review queue       (needs login + role admin)
- *   /login            Login                   (no navbar)
- *   /signup           Signup                  (no navbar)
+ *   /                                   Home        (hero + clubs + events)
+ *   /clubs                              Clubs
+ *   /clubs/:id/apply                    Apply to join a club          (needs login)
+ *   /clubs/:id/applications             Review applications + fee     (needs login; president only, enforced by the backend)
+ *   /events                             Events                        (needs login to see the list)
+ *   /my-event-registrations             My event registrations        (needs login)
+ *   /manage-events                      Events of clubs I lead        (needs login; president only, enforced by the backend)
+ *   /manage-events/:id/registrations    Registrations + payments      (needs login; host club president only)
+ *   /achievements                       Achievements
+ *   /dashboard                          My Portal
+ *   /create-club                        Create a club                 (needs login)
+ *   /my-submissions                     My club submissions           (needs login)
+ *   /my-clubs                           My memberships                (needs login)
+ *   /my-applications                    My membership applications    (needs login)
+ *   /manage-clubs                       Clubs I lead                  (needs login)
+ *   /admin/review                       Club review queue             (needs login + role admin)
+ *   /login                              Login                         (no navbar)
+ *   /signup                             Signup                        (no navbar)
  */
 export default function App() {
   return (
@@ -94,6 +103,22 @@ export default function App() {
               <Route path="/achievements" element={<AchievementsPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
 
+              <Route
+                path="/clubs/:id/apply"
+                element={
+                  <ProtectedRoute>
+                    <ApplyToClubPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/clubs/:id/applications"
+                element={
+                  <ProtectedRoute>
+                    <ClubApplicationsPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/create-club"
                 element={
@@ -115,6 +140,46 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <MyClubsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/my-applications"
+                element={
+                  <ProtectedRoute>
+                    <MyApplicationsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/my-event-registrations"
+                element={
+                  <ProtectedRoute>
+                    <MyEventRegistrationsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/manage-clubs"
+                element={
+                  <ProtectedRoute>
+                    <ManageClubsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/manage-events"
+                element={
+                  <ProtectedRoute>
+                    <ManageEventsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/manage-events/:id/registrations"
+                element={
+                  <ProtectedRoute>
+                    <EventRegistrationsPage />
                   </ProtectedRoute>
                 }
               />

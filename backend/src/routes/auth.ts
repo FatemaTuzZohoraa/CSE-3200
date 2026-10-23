@@ -4,11 +4,12 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 import pool from "../db";
+import { authenticate } from "../middleware/auth";
 
 const router = express.Router();
 
 // Strict regex for RUET EduMail: e.g. 2203032@student.ruet.ac.bd
-const RUET_EDUMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@student\.ruet\.ac\.bd$/i;
+const RUET_EDUMAIL_REGEX = /^\d{7}@student\.ruet\.ac\.bd$/;
 
 /**
  * Helper to configure Nodemailer transporter
@@ -59,7 +60,7 @@ router.post("/register", async (req: Request, res: Response): Promise<any> => {
         if (!RUET_EDUMAIL_REGEX.test(normalizedEmail)) {
             return res.status(400).json({
                 success: false,
-                message: "Registration is restricted exclusively to valid RUET EduMail (@student.ruet.ac.bd)"
+                message: "Use your RUET student EduMail, e.g. 2203021@student.ruet.ac.bd"
             });
         }
 
@@ -95,7 +96,7 @@ router.post("/register", async (req: Request, res: Response): Promise<any> => {
         // 7. Insert new user into database (Role forced to 'student')
         //    Without SMTP there is no email to verify, so the account is verified
         //    on the spot. See isSmtpConfigured above.
-        const smtpReady = isSmtpConfigured();
+        const smtpReady = isSmtpConfigured() && process.env.SKIP_EMAIL_VERIFICATION !== "true";
 
         const insertQuery = `
             INSERT INTO users (
@@ -441,5 +442,18 @@ router.post("/login", async (req: Request, res: Response): Promise<any> => {
         });
     }
 });
-
+/**
+ * GET /api/auth/me
+ * Returns the logged-in user exactly as the database sees them right now.
+ * The frontend calls this on page load, so a role stored in the browser (for
+ * example from before the DSW was promoted or demoted) never decides what the
+ * UI shows. The backend does not trust that stored copy for protection anyway:
+ * every protected route re-reads the role from PostgreSQL.
+ */
+router.get("/me", authenticate, (req: Request, res: Response): any => {
+    return res.json({
+        success: true,
+        user: req.user
+    });
+});
 export default router;

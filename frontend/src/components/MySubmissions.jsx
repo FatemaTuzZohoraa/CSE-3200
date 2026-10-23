@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { apiFetch } from "../lib/api";
+import { apiFetch, resolveAssetUrl } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Building2, Clock, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 
@@ -99,7 +99,7 @@ export const MySubmissions = () => {
                   <div className="flex items-start space-x-3">
                     <div className="w-12 h-12 rounded-xl bg-amber-50/50 border border-amber-200 flex items-center justify-center overflow-hidden shrink-0">
                       {club.logo_url ? (
-                        <img src={club.logo_url} alt={club.name} className="w-full h-full object-contain p-1" />
+                        <img src={resolveAssetUrl(club.logo_url)} alt={club.name} className="w-full h-full object-contain p-1" />
                       ) : (
                         <Building2 className="w-5 h-5 text-stone-300" />
                       )}

@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch } from "../lib/api";
+import { apiFetch, toFormData } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { Building2, CheckCircle2, AlertCircle, Image as ImageIcon, Info } from "lucide-react";
+import { LogoPicker } from "../components/LogoPicker";
+import { Building2, CheckCircle2, AlertCircle, Info } from "lucide-react";
 
 const CATEGORY_OPTIONS = [
   "Technology",
@@ -19,7 +20,6 @@ const EMPTY_FORM = {
   name: "",
   description: "",
   category: "Technology",
-  logo_url: "",
   advisor_name: "",
   advisor_email: "",
   advisor_department: ""
@@ -31,12 +31,16 @@ const inputClass =
 /**
  * CreateClubPage  ->  route: /create-club
  * Styled with Fall Vibe aesthetic.
+ *
+ * The form is sent as multipart/form-data so the optional logo image can travel
+ * with the text fields. The backend checks the file and uploads it to Cloudinary.
  */
 export const CreateClubPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [logoFile, setLogoFile] = useState(null);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -54,15 +58,16 @@ export const CreateClubPage = () => {
         name: formData.name,
         description: formData.description,
         category: formData.category,
-        logo_url: formData.logo_url || null,
         advisor_name: formData.advisor_name,
-        advisor_email: formData.advisor_email || null,
-        advisor_department: formData.advisor_department || null
+        advisor_email: formData.advisor_email,
+        advisor_department: formData.advisor_department
       };
 
+      // Empty optional fields are skipped, and the logo (if any) is attached
+      // under the field name "logo", which is what the backend expects.
       await apiFetch("/api/clubs", {
         method: "POST",
-        body: JSON.stringify(payload)
+        body: toFormData(payload, "logo", logoFile)
       });
 
       navigate("/my-submissions", { replace: true });
@@ -125,7 +130,7 @@ export const CreateClubPage = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-stone-700 font-semibold mb-1 block">Category *</label>
               <select value={formData.category} onChange={handleChange("category")} className={inputClass}>
@@ -135,22 +140,7 @@ export const CreateClubPage = () => {
               </select>
             </div>
 
-            <div>
-              <label className="text-stone-700 font-semibold mb-1 flex items-center gap-1">
-                <ImageIcon className="w-3.5 h-3.5 text-amber-700" />
-                Logo URL (optional)
-              </label>
-              <input
-                type="url"
-                value={formData.logo_url}
-                onChange={handleChange("logo_url")}
-                placeholder="https://example.com/logo.png"
-                className={inputClass}
-              />
-              <p className="text-[10px] text-stone-500 mt-1">
-                Paste a public image link. File upload is not built yet.
-              </p>
-            </div>
+            <LogoPicker file={logoFile} onChange={setLogoFile} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -192,8 +182,8 @@ export const CreateClubPage = () => {
           <div className="flex items-start space-x-2 p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl text-stone-600">
             <Info className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" />
             <span>
-              Known limitation: the database has no file upload, and the logo can only be set by the
-              person creating the club. Other club leaders cannot change the logo yet.
+              Known limitation: the logo can only be set by the person creating the club.
+              Other club leaders cannot change it yet.
             </span>
           </div>
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { apiFetch } from "../lib/api";
+import { apiFetch, resolveAssetUrl } from "../lib/api";
 import {
   Building2, CheckCircle2, XCircle, RefreshCw, ShieldCheck,
   Mail, Users, Clock, AlertCircle
@@ -182,7 +182,7 @@ export const AdminClubReview = () => {
               <div className="flex items-start gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-amber-50/50 border-2 border-amber-200 flex items-center justify-center overflow-hidden shrink-0">
                   {detail.club.logo_url ? (
-                    <img src={detail.club.logo_url} alt={detail.club.name} className="w-full h-full object-contain p-1.5" />
+                    <img src={resolveAssetUrl(detail.club.logo_url)} alt={detail.club.name} className="w-full h-full object-contain p-1.5" />
                   ) : (
                     <Building2 className="w-7 h-7 text-stone-300" />
                   )}

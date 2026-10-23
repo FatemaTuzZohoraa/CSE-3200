@@ -1,6 +1,11 @@
-import React from "react";
-import { Users, Calendar, Shield, ExternalLink, UserPlus, Check } from "lucide-react";
-import { useApp } from "../context/AppContext";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Users, Calendar, Shield, ExternalLink, UserPlus } from "lucide-react";
+
+// How the club's uploaded image fills the banner area:
+//   "cover"   -> fills the whole banner like the old banners did (edges may be cropped)
+//   "contain" -> shows the whole image, centered, over a blurred copy of itself
+const BANNER_FIT = "cover";
 
 const categoryBadges = {
   Technology: "bg-fall-600 text-white",
@@ -11,21 +16,20 @@ const categoryBadges = {
 };
 
 export const ClubCard = ({ club, onViewDetails }) => {
-  const appCtx = useApp() || {};
-  const joinedClubs = appCtx.joinedClubs || appCtx.savedClubIds || [];
-  const joinClub = appCtx.joinClub || appCtx.toggleSaveClub;
-  const leaveClub = appCtx.leaveClub || appCtx.toggleSaveClub;
+  const navigate = useNavigate();
 
-  const isJoined = club && club.id ? joinedClubs.includes(club.id) : false;
+  // If the image file is missing or broken, fall back to the gradient + letter
+  // placeholder instead of showing a broken-image icon.
+  const [imageFailed, setImageFailed] = useState(false);
+  const bannerSrc = club.banner || club.logo;
+  const hasImage = Boolean(bannerSrc) && !imageFailed;
 
-  const handleToggleJoin = (e) => {
+  // Joining is now an application: the Apply page checks whether this student
+  // is already a member or already has a pending application.
+  const handleApply = (e) => {
     e.stopPropagation();
     if (!club || !club.id) return;
-    if (isJoined) {
-      if (leaveClub) leaveClub(club.id);
-    } else {
-      if (joinClub) joinClub(club.id);
-    }
+    navigate(`/clubs/${club.id}/apply`);
   };
 
   return (
@@ -33,13 +37,34 @@ export const ClubCard = ({ club, onViewDetails }) => {
       onClick={() => onViewDetails && onViewDetails(club)}
       className="glass-card rounded-2xl overflow-hidden cursor-pointer flex flex-col group border border-amber-900/10 bg-white/90 shadow-fall-sm hover:shadow-fall-md transition-all duration-300"
     >
-      {/* Club Banner Image */}
-      <div className="relative h-44 sm:h-48 overflow-hidden bg-amber-100">
-        <img
-          src={club.banner}
-          alt={club.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-        />
+      {/* Club Banner: the club's uploaded image, large */}
+      <div className="relative h-44 sm:h-48 overflow-hidden bg-gradient-to-br from-amber-200 via-orange-200 to-amber-300">
+        {hasImage && BANNER_FIT === "contain" && (
+          <>
+            <img
+              src={bannerSrc}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full object-cover blur-2xl scale-125 opacity-60"
+            />
+            <img
+              src={bannerSrc}
+              alt={club.name}
+              onError={() => setImageFailed(true)}
+              className="relative w-full h-full object-contain pt-3 px-3 pb-14 group-hover:scale-105 transition-transform duration-500"
+            />
+          </>
+        )}
+
+        {hasImage && BANNER_FIT !== "contain" && (
+          <img
+            src={bannerSrc}
+            alt={club.name}
+            onError={() => setImageFailed(true)}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+        )}
+
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
         {/* Category Badge & Code */}
@@ -51,9 +76,11 @@ export const ClubCard = ({ club, onViewDetails }) => {
           >
             {club.category}
           </span>
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/90 text-amber-950 backdrop-blur-md">
-            {club.code}
-          </span>
+          {club.code && (
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/90 text-amber-950 backdrop-blur-md">
+              {club.code}
+            </span>
+          )}
         </div>
 
         {/* Members Badge */}
@@ -62,27 +89,29 @@ export const ClubCard = ({ club, onViewDetails }) => {
           <span>{club.membersCount || club.members_count || 0}</span>
         </div>
 
-        {/* Club Logo Overlay */}
-        <div className="absolute bottom-3 left-4 flex items-center space-x-3">
-          <div className="w-12 h-12 rounded-xl bg-white p-1 shadow-md border border-amber-900/10 flex items-center justify-center text-2xl shrink-0 overflow-hidden">
-            {club.logo && club.logo.startsWith('/') || club.logo && club.logo.startsWith('http') ? (
-              <img src={club.logo} alt={club.name} className="w-full h-full object-contain" />
-            ) : (
-              <span>{club.logo || "🏛️"}</span>
-            )}
-          </div>
-          <div className="text-white drop-shadow-md">
+        {/* Name overlay. The small letter tile only appears when the club has no image. */}
+        <div className="absolute bottom-3 left-4 right-4 flex items-center space-x-3">
+          {!hasImage && (
+            <div className="w-12 h-12 rounded-xl bg-white p-1 shadow-md border border-amber-900/10 flex items-center justify-center shrink-0 overflow-hidden">
+              <span className="w-full h-full rounded-lg bg-gradient-to-br from-fall-600 to-amber-800 text-white flex items-center justify-center text-lg font-extrabold">
+                {(club.name || "?").charAt(0).toUpperCase()}
+              </span>
+            </div>
+          )}
+          <div className="text-white drop-shadow-md min-w-0">
             <h3 className="font-extrabold text-base leading-snug line-clamp-1 group-hover:text-amber-200 transition-colors">
               {club.name}
             </h3>
-            <p className="text-[11px] text-amber-100 font-medium">Est. {club.established || 2015}</p>
+            {club.established && (
+              <p className="text-[11px] text-amber-100 font-medium">Est. {club.established}</p>
+            )}
           </div>
         </div>
       </div>
 
       {/* Card Content Body */}
       <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-        
+
         {/* Description */}
         <p className="text-xs text-amber-900/80 leading-relaxed line-clamp-3">
           {club.description}
@@ -126,24 +155,11 @@ export const ClubCard = ({ club, onViewDetails }) => {
           </button>
 
           <button
-            onClick={handleToggleJoin}
-            className={`py-2 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center space-x-1 shadow-sm ${
-              isJoined
-                ? "bg-amber-800 text-white hover:bg-amber-900"
-                : "bg-fall-600 hover:bg-fall-700 text-white shadow-fall-600/20"
-            }`}
+            onClick={handleApply}
+            className="py-2 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center space-x-1 shadow-sm bg-fall-600 hover:bg-fall-700 text-white shadow-fall-600/20"
           >
-            {isJoined ? (
-              <>
-                <Check className="w-3.5 h-3.5" />
-                <span>Joined</span>
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>Join</span>
-              </>
-            )}
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Apply to Join</span>
           </button>
         </div>
 

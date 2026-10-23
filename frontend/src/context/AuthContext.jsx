@@ -10,8 +10,9 @@ import { apiFetch, setToken, clearToken, getToken } from "../lib/api";
  * what the backend actually knows.
  *
  * NOTE ON SECURITY: the user object saved here is only used to decide which
- * buttons to draw. Every club API call is authorised again on the server, so
- * editing this in the browser would gain nothing.
+ * buttons and pages to draw. Every API call is authorised again on the server,
+ * which re-reads the role from PostgreSQL, so editing this in the browser
+ * gains nothing.
  */
 
 const USER_KEY = "clubhub_user";
@@ -31,7 +32,9 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(readSavedUser);
   const [isChecking, setIsChecking] = useState(true);
 
-  // On page load, confirm the saved token is still accepted by the backend.
+  // On page load, ask the backend who this token belongs to RIGHT NOW. The
+  // answer (including the role) replaces whatever was saved in the browser, so
+  // a stale role from before a promotion or demotion never decides the UI.
   useEffect(() => {
     const checkExistingLogin = async () => {
       if (!getToken()) {
@@ -40,13 +43,18 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        // Any authenticated call proves the token still works.
-        await apiFetch("/api/clubs/mine");
-      } catch {
-        // Expired or rejected token, so drop it and show the logged out view.
-        clearToken();
-        localStorage.removeItem(USER_KEY);
-        setUser(null);
+        const data = await apiFetch("/api/auth/me");
+        localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        setUser(data.user);
+      } catch (error) {
+        // Only a 401 means the token itself is bad (expired, forged, user gone).
+        // Any other failure, such as the backend being down or restarting, keeps
+        // the saved login so a refresh does not sign everybody out.
+        if (error.status === 401) {
+          clearToken();
+          localStorage.removeItem(USER_KEY);
+          setUser(null);
+        }
       } finally {
         setIsChecking(false);
       }

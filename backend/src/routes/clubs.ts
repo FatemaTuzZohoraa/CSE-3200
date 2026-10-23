@@ -1,6 +1,7 @@
 import express, { Request, Response } from "express";
 import pool from "../db";
 import { authenticate } from "../middleware/auth";
+import { logoUploadMiddleware, saveLogo, discardUpload, removeLogo } from "../storage/logoStorage";
 
 const router = express.Router();
 
@@ -21,14 +22,26 @@ const cleanText = (value: any): string | null => {
  * POST /api/clubs
  * Creates a club for the logged-in user.
  *
- * The request body only carries club details. The creator, the president and
- * the status are decided here on the server, never by the frontend.
+ * The request is multipart/form-data: the text fields (name, description, ...)
+ * plus an OPTIONAL image file in the field "logo". A plain JSON request without
+ * a logo still works too.
+ *
+ * Order matters: authenticate runs BEFORE the upload middleware, so a logged-out
+ * visitor can never write a file to the server.
+ *
+ * The creator, the president and the status are decided here on the server,
+ * never by the frontend. The logo path also comes only from the uploaded file,
+ * never from a text field, so nobody can store an arbitrary URL.
  */
-router.post("/", authenticate, async (req: Request, res: Response): Promise<any> => {
+router.post("/", authenticate, logoUploadMiddleware, async (req: Request, res: Response): Promise<any> => {
     const client = await pool.connect();
 
+    // Declared out here so the catch block can delete the saved file again if
+    // the database write fails.
+    let logoUrl: string | null = null;
+
     try {
-        const { name, description, category, logo_url, advisor_name, advisor_email, advisor_department } = req.body;
+        const { name, description, category, advisor_name, advisor_email, advisor_department } = req.body;
 
         // 1. Validation
         const errors: string[] = [];
@@ -39,23 +52,21 @@ router.post("/", authenticate, async (req: Request, res: Response): Promise<any>
         const advisorName = cleanText(advisor_name);
         const advisorEmail = cleanText(advisor_email);
         const advisorDepartment = cleanText(advisor_department);
-        const logoUrl = cleanText(logo_url);
 
         if (!clubName) errors.push("Club name is required");
         if (!clubDescription) errors.push("Club description is required");
         if (!clubCategory) errors.push("Club category is required");
         if (!advisorName) errors.push("Advisor name is required");
 
-        // advisor_email and logo_url are optional, but must look valid if present
+        // advisor_email is optional, but must look valid if present
         if (advisorEmail && !EMAIL_REGEX.test(advisorEmail)) {
             errors.push("Advisor email is not a valid email address");
         }
 
-        if (logoUrl && !/^https?:\/\//i.test(logoUrl)) {
-            errors.push("Logo URL must start with http:// or https://");
-        }
-
         if (errors.length > 0) {
+            // multer already saved the file, so remove it again
+            await discardUpload(req.file);
+
             return res.status(400).json({
                 success: false,
                 message: errors[0],
@@ -63,10 +74,31 @@ router.post("/", authenticate, async (req: Request, res: Response): Promise<any>
             });
         }
 
-        // 2. Open the transaction. Everything below either all lands, or none does.
+        // 2. Logo (optional). saveLogo checks the file's real content, then uploads it.
+        if (req.file) {
+            try {
+                logoUrl = await saveLogo(req.file);
+            } catch (logoError: any) {
+                if (logoError?.message === "INVALID_LOGO_CONTENT") {
+                    return res.status(400).json({
+                        success: false,
+                        message: "The logo must be a real PNG, JPG or WEBP image"
+                    });
+                }
+
+                // Not the user's fault: Cloudinary unreachable or credentials wrong
+                console.error("[Logo Upload Error]", logoError);
+                return res.status(502).json({
+                    success: false,
+                    message: "Could not upload the logo right now. Please try again, or submit the club without a logo."
+                });
+            }
+        }
+
+        // 3. Open the transaction. Everything below either all lands, or none does.
         await client.query("BEGIN");
 
-        // 3a. Create the club. status defaults to 'pending' in the database,
+        // 4a. Create the club. status defaults to 'pending' in the database,
         //     and we never read status from the body.
         const clubResult = await client.query(
             `INSERT INTO clubs (name, description, category, logo_url,
@@ -80,7 +112,7 @@ router.post("/", authenticate, async (req: Request, res: Response): Promise<any>
         const club = clubResult.rows[0];
         const creatorId = req.user!.id;
 
-        // 3b. The creator joins the club. club_leaderships has a foreign key to
+        // 4b. The creator joins the club. club_leaderships has a foreign key to
         //     club_members, so this must happen first.
         await client.query(
             `INSERT INTO club_members (club_id, user_id)
@@ -88,7 +120,7 @@ router.post("/", authenticate, async (req: Request, res: Response): Promise<any>
             [club.id, creatorId]
         );
 
-        // 3c. The creator becomes the president. ended_at stays NULL, which is
+        // 4c. The creator becomes the president. ended_at stays NULL, which is
         //     how the database marks the one current president per club.
         await client.query(
             `INSERT INTO club_leaderships (club_id, user_id)
@@ -96,14 +128,14 @@ router.post("/", authenticate, async (req: Request, res: Response): Promise<any>
             [club.id, creatorId]
         );
 
-        // 3d. Write the audit row. Old history is never edited, only appended.
+        // 4d. Write the audit row. Old history is never edited, only appended.
         await client.query(
             `INSERT INTO club_status_history (club_id, acted_by, action, comment)
              VALUES ($1, $2, 'submitted', $3)`,
             [club.id, creatorId, `Submitted by ${req.user!.name} for DSW/Admin review`]
         );
 
-        // 4. All four writes succeeded, so commit.
+        // 5. All four writes succeeded, so commit.
         await client.query("COMMIT");
 
         return res.status(201).json({
@@ -116,8 +148,10 @@ router.post("/", authenticate, async (req: Request, res: Response): Promise<any>
         });
 
     } catch (error: any) {
-        // Anything that failed above must not leave half a club behind.
+        // Anything that failed above must not leave half a club behind, and the
+        // uploaded file must not stay behind as an orphan either.
         await client.query("ROLLBACK");
+        await removeLogo(logoUrl);
 
         // 23505 = unique_violation. clubs.name is UNIQUE, so this is a duplicate.
         if (error?.code === "23505") {
@@ -303,91 +337,18 @@ router.get("/joined", authenticate, async (req: Request, res: Response): Promise
 
 /**
  * POST /api/clubs/:id/join
- * A signed-in student joins an approved club.
+ * Instant joining was replaced by the application flow (routes/memberships.ts:
+ * POST /api/clubs/:id/applications). This endpoint stays only so old frontend
+ * code gets a clear message instead of a mysterious 404.
  *
- * Only the user id from the token is used, so nobody can join on someone else's
- * behalf. The club must be approved, otherwise a student could see a pending or
- * rejected club by guessing its id.
+ * It must NEVER write to club_members: membership is created only when a club
+ * president approves an application.
  */
-router.post("/:id/join", authenticate, async (req: Request, res: Response): Promise<any> => {
-    try {
-        const clubId = Number(req.params.id);
-
-        if (!Number.isInteger(clubId)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid club id"
-            });
-        }
-
-        const userId = req.user!.id;
-
-        const clubResult = await pool.query(
-            "SELECT id, name, status FROM clubs WHERE id = $1",
-            [clubId]
-        );
-
-        if (clubResult.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: "Club not found"
-            });
-        }
-
-        const club = clubResult.rows[0];
-
-        if (club.status !== "approved") {
-            return res.status(403).json({
-                success: false,
-                message: "This club is not open for joining right now. Only approved clubs accept new members."
-            });
-        }
-
-        // The creator is already a member and president, so joining is a no-op.
-        const leadershipResult = await pool.query(
-            "SELECT 1 FROM club_leaderships WHERE club_id = $1 AND user_id = $2 AND ended_at IS NULL",
-            [clubId, userId]
-        );
-
-        if (leadershipResult.rows.length > 0) {
-            return res.status(409).json({
-                success: false,
-                message: `You are already a leader of "${club.name}".`
-            });
-        }
-
-        // club_members has PRIMARY KEY (club_id, user_id), so a student who left
-        // and comes back updates the same row instead of adding a second one.
-        await pool.query(
-            `INSERT INTO club_members (club_id, user_id)
-             VALUES ($1, $2)
-             ON CONFLICT (club_id, user_id)
-             DO UPDATE SET joined_at = NOW(), left_at = NULL`,
-            [clubId, userId]
-        );
-
-        const countResult = await pool.query(
-            "SELECT COUNT(*) FROM club_members WHERE club_id = $1 AND left_at IS NULL",
-            [clubId]
-        );
-
-        return res.status(201).json({
-            success: true,
-            message: `You have joined "${club.name}".`,
-            club: {
-                ...club,
-                members_count: Number(countResult.rows[0].count),
-                is_member: true
-            }
-        });
-
-    } catch (error) {
-        console.error("[Join Club Error]", error);
-        return res.status(500).json({
-            success: false,
-            message: "Could not join this club right now. Please try again."
-        });
-    }
+router.post("/:id/join", authenticate, (req: Request, res: Response): any => {
+    return res.status(410).json({
+        success: false,
+        message: "Joining a club now needs an application. Use the Apply button on the club page."
+    });
 });
 
 /**
